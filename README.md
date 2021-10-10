@@ -1,10 +1,8 @@
-Margin trading contract using 1inch Limit Order protocol and Aave flashloans and Credit delegation
+Zero-cost Aave liquidations using 1inch limit order protocol
 
-Contract - SolarisMargin.sol
+Contract - Liquidator.sol
 
 How to run:
 1. `yarn install`
-2. Set your infura api key in hardhat.config.js to run mainnet fork when testing
-3. `yarn test` - to run tests, which are in `mytests/index.js` folder
-
-[UI repository and how it works](https://github.com/solaris-protocol/solaris-eth-margin)
+2. Set your infura or alchemy api endpoint in hardhat.config.js to run mainnet fork when testing
+3. `yarn test` - to run tests, which are in `mytests/to_test/index.js` folder

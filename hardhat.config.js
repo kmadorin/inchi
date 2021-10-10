@@ -33,7 +33,7 @@ module.exports = {
         },
         hardhat: {
             forking: {
-                url: 'https://eth-mainnet.alchemyapi.io/v2/vFCuc206bPWJtECIZ44QF6qrnsKLZXQa',
+                url: 'YOUR_ALCHEMY_OR_INFURA_API_ENDPOINT_HERE',
                 allowUnlimitedContractSize: true,
             },
         },

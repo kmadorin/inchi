@@ -27,7 +27,7 @@ const { buildOrderData, ABIOrder } = require('../../test/helpers/orderUtils');
 const { cutLastArg, toBN } = require('../../test/helpers/utils');
 const { web3 } = require('@openzeppelin/test-helpers/src/setup');
 
-contract('LimitOrderProtocol', async function ([_, wallet]) {
+contract('Inchi', async function ([_, wallet]) {
 	const aaveLendingPoolAddressProvider = '0xB53C1a33016B2DC2fF3653530bfF1848a515c8c5';
 	const aaveOracle = '0xA50ba011c48153De246E5192C8f9258A2ba79Ca9';
 	const aaveOracleOwner = '0xee56e2b3d491590b5b31738cc34d5232f378a8d5';
@@ -139,7 +139,7 @@ contract('LimitOrderProtocol', async function ([_, wallet]) {
         this.chainId = await this.usdc.getChainId()
     });
 
-    describe('My test', function () {
+    describe('Liquidator', function () {
     	it('should liquidate unhealthy position on order fill', async function() {
     		// deposit 2 WETH to Aaave
 			await this.weth.methods.deposit().send({from: wallet, value: ether('2')});
@@ -164,7 +164,7 @@ contract('LimitOrderProtocol', async function ([_, wallet]) {
 			const userDataAfterPriceChanged = await this.liquidator.getUserAccountData(wallet);
 			const healthFactorAfterPriceChanged = await this.liquidator.getHealthFactor(wallet);
 
-			console.log(`###: healthFactorAfterPriceChanged`, healthFactorAfterPriceChanged)
+			console.log(`###: healthFactorAfterPriceChanged`, web3.utils.fromWei(healthFactorAfterPriceChanged, 'ether'))
 
 			// create 1inch limit order that will liquidate this loan on fill
 			// makerAmount = 50% of collateral
@@ -194,7 +194,7 @@ contract('LimitOrderProtocol', async function ([_, wallet]) {
 			}
 
 			const healthFactorAfterLiquidation = await this.liquidator.getHealthFactor(wallet);
-			console.log('Position has been successfully liquidated, new health factor is: ', healthFactorAfterLiquidation)
+			console.log('Position has been successfully liquidated, new health factor is: ', web3.utils.fromWei(healthFactorAfterLiquidation, 'ether'));
 
 			return true;
 		});
