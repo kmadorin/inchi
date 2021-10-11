@@ -13,7 +13,7 @@ import "./interfaces/ILendingPool.sol";
 import "hardhat/console.sol";
 
 
-contract Liquidator is Ownable, EIP712Alien {
+contract Defender is Ownable, EIP712Alien {
     using SafeERC20 for IERC20;
     using ArgumentsDecoder for bytes;
     using SafeMath for uint256;
@@ -27,13 +27,15 @@ contract Liquidator is Ownable, EIP712Alien {
     uint256 constant private _AMOUNT_INDEX = 2;
 
     address private immutable _limitOrderProtocol;
-    ILendingPoolAddressesProvider private immutable _lendingPoolAddressProvider;
+    ILendingPoolAddressesProvider private _lendingPoolAddressProvider;
+    ILendingPool private _lendingPool;
 
     constructor(address limitOrderProtocol, ILendingPoolAddressesProvider lendingPoolAddressProvider)
     EIP712Alien(limitOrderProtocol, "1inch Limit Order Protocol", "1")
     {
         _limitOrderProtocol = limitOrderProtocol;
         _lendingPoolAddressProvider = lendingPoolAddressProvider;
+        _lendingPool = ILendingPool(_lendingPoolAddressProvider.getLendingPool());
     }
 
     function _toUint256(bytes memory _bytes) internal pure returns (uint256 value) {
@@ -53,37 +55,68 @@ contract Liquidator is Ownable, EIP712Alien {
         uint256 ltv,
         uint256 healthFactor
     ) {
-        ILendingPool lendingPool = ILendingPool(_lendingPoolAddressProvider.getLendingPool());
-        (totalCollateralETH, totalDebtETH, availableBorrowsETH, currentLiquidationThreshold, ltv, healthFactor) = lendingPool.getUserAccountData(_user);
+        (totalCollateralETH, totalDebtETH, availableBorrowsETH, currentLiquidationThreshold, ltv, healthFactor) = _lendingPool.getUserAccountData(_user);
     }
 
     function isHFBelowThreshold(address _user, uint256 _threshold) external view returns(bool) {
-        ILendingPool lendingPool = ILendingPool(_lendingPoolAddressProvider.getLendingPool());
         uint256 _healthFactor;
-        (, , , , , _healthFactor) = lendingPool.getUserAccountData(_user);
+        (, , , , , _healthFactor) = _lendingPool.getUserAccountData(_user);
         return _healthFactor < _threshold;
     }
 
     function getHealthFactor(address _user) external view returns(uint256) {
-        ILendingPool lendingPool = ILendingPool(_lendingPoolAddressProvider.getLendingPool());
         uint256 _healthFactor;
-        (, , , , , _healthFactor) = lendingPool.getUserAccountData(_user);
+        (, , , , , _healthFactor) = _lendingPool.getUserAccountData(_user);
         return _healthFactor;
     }
 
-
-    function _liquidate(
-        address _collateral,
-        address _reserve,
-        address _user,
-        uint256 _purchaseAmount,
-        bool _receiveaToken
+    function _repay(
+        address _asset,
+        uint256 _amount,
+        uint256 _rateMode
     )
     internal
     {
-        ILendingPool lendingPool = ILendingPool(_lendingPoolAddressProvider.getLendingPool());
-        require(IERC20(_reserve).approve(address(lendingPool), _purchaseAmount), "Approval error");
-        lendingPool.liquidationCall(_collateral, _reserve, _user, _purchaseAmount, _receiveaToken);
+        _lendingPool.repay(_asset, _amount, _rateMode, address(this));
+    }
+
+    function _withdraw(
+        address _asset,
+        uint256 _amount
+    )
+    internal
+    {
+        _lendingPool.withdraw(_asset, _amount, address(this));
+    }
+
+    function deposit(
+        address _asset,
+        uint256 _amount
+    )
+    public onlyOwner
+    {
+        IERC20(_asset).approve(address(_lendingPool), _amount);
+        _lendingPool.deposit(_asset, _amount, address(this), 0);
+    }
+
+    function borrow(
+        address _asset,
+        uint256 _amount
+    )
+    public onlyOwner
+    {
+        _lendingPool.borrow(_asset, _amount, 2, 0, address(this));
+        IERC20(_asset).transfer(msg.sender, _amount);
+    }
+
+    function approve(
+        address _address,
+        address _asset,
+        uint256 _amount
+    )
+    public onlyOwner
+    {
+        IERC20(_asset).approve(_address, _amount);
     }
 
     /// @notice callback from limit order protocol, executes on order fill
@@ -97,15 +130,9 @@ contract Liquidator is Ownable, EIP712Alien {
         require(msg.sender == _limitOrderProtocol, "only LOP can exec callback");
         makerAsset;
         takingAmount;
-        address collateral;
-        address reserve;
-        address user;
-        uint256 purchaseAmount;
-        bool receiveaToken;
-
-        (collateral, reserve, user, purchaseAmount, receiveaToken) = abi.decode(interactiveData, (address, address, address, uint256, bool));
-        _liquidate(collateral, reserve, user, purchaseAmount, receiveaToken);
-        IERC20(makerAsset).approve(msg.sender, makingAmount);
+        IERC20(takerAsset).approve(address(_lendingPool), takingAmount);
+        _repay(takerAsset, takingAmount, 2);
+        _withdraw(makerAsset, makingAmount);
     }
 
     /// @notice validate signature from Limit Order Protocol, checks also asset and amount consistency
